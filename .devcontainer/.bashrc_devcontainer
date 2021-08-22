@@ -1,0 +1,38 @@
+if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
+. /etc/bash_completion
+fi
+
+export PATH=/workspaces/vashi/infra-live/bin:/home/vscode/.local/bin:/workspaces/vashi/bin:$PATH
+
+# stop git prompting for vi
+export EDITOR=code
+
+# add powerline config to vs terminal
+function _update_ps1() {
+    PS1="$(/usr/bin/powerline-go -mode flat -modules venv,user,ssh,cwd,perms,git,hg,jobs,exit,root,vgo,kube -cwd-max-depth 3 -shorten-gke-names $?)"
+}
+
+if [ "$TERM" != "linux" ] && [ -f "/usr/bin/powerline-go" ]; then
+    PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"
+fi
+
+# Set locales
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
+if [[ -S /tmp/.ssh-auth-sock ]] ; then
+  export SSH_AUTH_SOCK=/tmp/.ssh-auth-sock
+fi
+
+alias gst="git status"
+alias git_creds="git config --global credential.helper cache && git config --global credential.helper 'cache --timeout=3600'"
+
+eval `keychain --eval --agents ssh id_rsa`
+
+export PATH=$HOME/.tfenv/bin:$PATH
+
+# no tf version installed
+if ! tfenv list; then
+	tfenv install ${TERRAFORM_VERSION}
+	tfenv use ${TERRAFORM_VERSION}
+fi
