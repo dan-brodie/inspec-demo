@@ -19,9 +19,8 @@ build {
   sources = [
     "source.googlecompute.inspec-test"
   ]
-
-  provisioner "shell-local" {
-    environment_vars = ["BUILDER=${build.Host}"]
-    command = "docker run --rm -v $LOCAL_WORKSPACE_FOLDER/tests:/workspace -w /workspace chef/inspec:4.41.7 detect -t ssh://packer@$BUILDER -i sshkey"
+  provisioner "inspec" {
+      inspec_env_vars = [ "CHEF_LICENSE=accept"]
+      profile = "tests/inspec/"
   }
 }
