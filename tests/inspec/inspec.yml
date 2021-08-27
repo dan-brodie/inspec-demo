@@ -1,1 +1,10 @@
-name: default
+name: process-check
+title: InSpec Server Health Check
+maintainer: me
+copyright: nil
+copyright_email: me
+license: MIT
+summary: Checks process liveness after boot.
+version: 0.0.1
+supports:
+  - platform-family: unix

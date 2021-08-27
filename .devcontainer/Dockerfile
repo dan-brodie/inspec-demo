@@ -40,10 +40,14 @@ RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/so
 
 # Install packer
 ENV PACKER_VERISON=1.7.4
-RUN curl -Lo packer.zip https://releases.hashicorp.com/packer/1.7.4/packer_1.7.4_linux_arm64.zip && \
+RUN curl -Lo packer.zip https://releases.hashicorp.com/packer/1.7.4/packer_1.7.4_linux_amd64.zip && \
         unzip -qq packer.zip && \
         chmod +x packer && \
         mv packer /usr/bin
 
 # Install Inspec
 RUN curl https://omnitruck.chef.io/install.sh | bash -s -- -P inspec
+
+# Install gitlab runner
+RUN curl -LJO "https://gitlab-runner-downloads.s3.amazonaws.com/latest/deb/gitlab-runner_amd64.deb" && \
+        dpkg -i gitlab-runner_amd64.deb

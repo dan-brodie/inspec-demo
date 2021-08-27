@@ -1,0 +1,96 @@
+workflow:
+  rules:
+    - if: $ENVIRONMENT == "prod"
+      variables:
+        ENVIRONMENT: prod
+        GCLOUD_TOKEN: GCLOUD_PROD
+    - if: $ENVIRONMENT == "test"
+      variables:
+        ENVIRONMENT: test
+        GCLOUD_TOKEN: GCLOUD_TEST
+    - if: $ENVIRONMENT == "dev"
+      variables:
+        ENVIRONMENT: dev
+        GCLOUD_TOKEN: GCLOUD_DEV
+
+stages:
+  - terragrunt_plan
+  - terragrunt_apply
+  - inspec_test
+
+terragrunt_plan_mr:
+  image: hashicorp/terraform:1.0.5
+  when: manual
+  stage: terragrunt_plan
+  script:
+    - eval "TOKEN=\$$GCLOUD_TOKEN"
+    - echo "Running Terragrunt Plan on $TG_MODULE to $ENVIRONMENT using $GCLOUD_TOKEN"
+    - echo $TOKEN > ${HOME}/gcloud-service-key.json
+    - gcloud auth activate-service-account --key-file ${HOME}/gcloud-service-key.json
+    - export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json
+    - cd Infrastructure/terraform/
+    - terragrunt run-all plan --terragrunt-working-dir $TG_MODULE --terragrunt-include-external-dependencies --terragrunt-non-interactive
+
+terragrunt_plan:
+  image: hashicorp/terraform:1.0.5
+  when: manual
+  stage: terragrunt_plan
+  script:
+    - terraform --version
+    - eval "TOKEN=\$$GCLOUD_TOKEN"
+    - echo "Running Terragrunt Plan on $TG_MODULE to $ENVIRONMENT using $GCLOUD_TOKEN"
+    - echo $TOKEN > ${HOME}/gcloud-service-key.json
+    - gcloud auth activate-service-account --key-file ${HOME}/gcloud-service-key.json
+    - export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json
+    - cd Infrastructure/terraform/
+    - terragrunt run-all plan --terragrunt-working-dir $TG_MODULE --terragrunt-include-external-dependencies --terragrunt-non-interactive
+
+terragrunt_apply:
+  image: hashicorp/terraform:1.0.5
+  when: manual
+  stage: terragrunt_apply
+  script:
+    - eval "TOKEN=\$$GCLOUD_TOKEN"
+    - echo "Running Terragrunt Apply on $TG_MODULE to $ENVIRONMENT using $GCLOUD_TOKEN"
+    - echo $TOKEN > ${HOME}/gcloud-service-key.json
+    - gcloud auth activate-service-account --key-file ${HOME}/gcloud-service-key.json
+    - export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json
+    - cd Infrastructure/terraform/
+    - terragrunt run-all apply --terragrunt-working-dir $TG_MODULE --terragrunt-include-external-dependencies --terragrunt-non-interactive
+
+inspec_test:
+  image: chef/inspec:stable
+  when: manual
+  stage: test
+  script:
+  # get gcloud credentials and log in
+     - eval "TOKEN=\$$GCLOUD_TOKEN"
+    - echo "Running Terragrunt Apply on $TG_MODULE to $TG_ENVIRONMENT using $GCLOUD_TOKEN"
+    - echo $TOKEN > ${HOME}/gcloud-service-key.json
+    - gcloud auth activate-service-account --key-file ${HOME}/gcloud-service-key.json
+    - export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json
+
+  # set these centrally
+    - echo "Setting some Envars."
+    - export INSPEC_PROFILE=tests/inspec
+    - export TARGET_HOST=inspec-test
+    - export TARGET_ZONE=us-central1-b
+    - export SSH_KEY=sshinspec
+    - export SSH_USER=inspec
+  # install and log into gcloud as app default
+    - 
+  # check and install inspec
+    - echo "Checking $INSPEC_PROFILE test profile."
+    - inspec --version
+    - inspec --chef-license=accept
+    - inspec check $INSPEC_PROFILE
+  # inject temporary ssh key for inspec to use - TODO: probably pass from TF
+    - echo "Generating Keys"
+    - ssh-keygen -t rsa -f $SSH_KEY -C $SSH_USER -q -N ""
+    - "sed -i -e 's/^/${SSH_USER}:/' ${SSH_KEY}.pub"
+    - gcloud compute instances add-metadata $TARGET_HOST --metadata-from-file ssh-keys=${SSH_KEY}.pub
+  # run inspec tests over ssh
+    - echo "we should wait for the $TARGET_HOST bootscript to complete"
+    - sleep 10
+    - inspec exec $INSPEC_PROFILE --target=ssh://${SSH_USER}@$(gcloud compute instances describe ${TARGET_HOST} --zone=${TARGET_ZONE} --format='get(networkInterfaces[0].accessConfigs[0].natIP)') -i $SSH_KEY
+  # delete ssh key from server
